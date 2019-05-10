@@ -254,6 +254,7 @@ class ProjectDataStore(JsonDataStore, UpdateInterface):
         self.current_filepath = None
         self.has_unsaved_changes = False
 
+        return
         # Get default profile
         s = settings.get_settings()
         default_profile = s.get("default-profile")
@@ -302,10 +303,11 @@ class ProjectDataStore(JsonDataStore, UpdateInterface):
         self._data["channels"] = channels
         self._data["channel_layout"] = channel_layout
 
-    def load(self, file_path, clear_thumbnails=True):
+    def load(self, file_path, clear_thumbnails=True, export_mode=False):
         """ Load project from file """
 
         self.new()
+        self.export_mode = export_mode
 
         if file_path:
             log.info("Loading project file: {}".format(file_path))
@@ -349,15 +351,17 @@ class ProjectDataStore(JsonDataStore, UpdateInterface):
                 # Copy project thumbnails folder
                 shutil.copytree(project_thumbnails_folder, info.THUMBNAIL_PATH)
 
-            # Add to recent files setting
-            self.add_to_recent_files(file_path)
+            if not self.export_mode:
+                # Add to recent files setting
+                self.add_to_recent_files(file_path)
 
             # Upgrade any data structures
             self.upgrade_project_data_structures()
 
         # Get app, and distribute all project data through update manager
-        from classes.app import get_app
-        get_app().updates.load(self._data)
+        if not self.export_mode:
+            from classes.app import get_app
+            get_app().updates.load(self._data)
 
         # Clear needs save flag
         self.has_unsaved_changes = False
@@ -886,9 +890,12 @@ class ProjectDataStore(JsonDataStore, UpdateInterface):
         elif self.current_filepath:
             starting_folder = os.path.dirname(self.current_filepath)
 
-        # Get translation method
-        from classes.app import get_app
-        _ = get_app()._tr
+        if self.export_mode:
+            _ = log.info
+        else:
+                # Get translation method
+                from classes.app import get_app
+                _ = get_app()._tr
 
         from PyQt5.QtWidgets import QFileDialog, QMessageBox
 
