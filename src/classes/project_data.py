@@ -42,8 +42,9 @@ from classes.updates import UpdateInterface
 class ProjectDataStore(JsonDataStore, UpdateInterface):
     """ This class allows advanced searching of data structure, implements changes interface """
 
-    def __init__(self):
+    def __init__(self, export_mode=False):
         JsonDataStore.__init__(self)
+        self.export_mode = export_mode
         self.data_type = "project data"  # Used in error messages
         self.default_project_filepath = os.path.join(info.PATH, 'settings', '_default.project')
 
@@ -254,7 +255,8 @@ class ProjectDataStore(JsonDataStore, UpdateInterface):
         self.current_filepath = None
         self.has_unsaved_changes = False
 
-        return
+        if self.export_mode:
+            return
         # Get default profile
         s = settings.get_settings()
         default_profile = s.get("default-profile")
@@ -303,11 +305,10 @@ class ProjectDataStore(JsonDataStore, UpdateInterface):
         self._data["channels"] = channels
         self._data["channel_layout"] = channel_layout
 
-    def load(self, file_path, clear_thumbnails=True, export_mode=False):
+    def load(self, file_path, clear_thumbnails=True):
         """ Load project from file """
 
         self.new()
-        self.export_mode = export_mode
 
         if file_path:
             log.info("Loading project file: {}".format(file_path))

@@ -6,10 +6,10 @@ import sys
 import json
 
 from PyQt5.QtWidgets import QApplication
-from PyQt5.QtGui import QPainter
+from PyQt5.QtGui import QPainter, QImage
 
 from argparse import ArgumentParser, REMAINDER
-from classes import project_data
+from classes import project_data, app
 from classes.logger import log
 
 # OpenshotExporter creates an exporter based on the specified project.
@@ -17,7 +17,7 @@ class OpenshotExporter():
 
     def __init__(self, project, output_file_path):
 
-        self.app = QApplication([])
+        self.app = app.get_app()
         self.project = project
         self.output_file_path = output_file_path
         self.check_project()
@@ -49,19 +49,36 @@ class OpenshotExporter():
         self.timeline.Open()
         log.info("Loaded timeline")
 
-        
-        log.info("video length: %d", self.timeline.info.video_length)
-        log.info("video sample rate: %d", self.timeline.info.sample_rate)
+        # Determine max frame (based on clips)
+        timeline_length = 0.0
+        fps = self.timeline.info.fps.ToFloat()
+        clips = self.timeline.Clips()
+        for clip in clips:
+            clip_last_frame = clip.Position() + clip.Duration()
+            if clip_last_frame > timeline_length:
+                # Set max length of timeline
+                timeline_length = clip_last_frame
+
+        # Convert to int and round
+        self.timeline_length_int = round(timeline_length * fps) + 1
+        self.timeline.DisplayInfo()
+
+        for clip in clips:
+            clip_last_frame = clip.Position() + clip.Duration()
+            if clip_last_frame > timeline_length:
+                # Set max length of timeline
+                timeline_length = clip_last_frame
+
+        log.info("Timeline length: %d frames", self.timeline_length_int)
 
         video_settings = { "vcodec" : "libx264",
                            "fps": {"num" : 30, "den": 1},
                            "pixel_ratio": {"num" : 1, "den": 1},
-                           "width": 1280,
-                           "height": 720,
+                           "width": width,
+                           "height": height,
                            "video_bitrate": 15000000, # int(self.convert_to_bytes(self.txtVideoBitRate.text()))
                            "start_frame": 1,
-                           "end_frame": 300
-#                           "end_frame": 4092
+                           "end_frame": self.timeline_length_int,
         }
 
         audio_settings = {"acodec": "aac",
@@ -103,13 +120,24 @@ class OpenshotExporter():
         # Open the writer
         w.Open()
 
+        #tr = openshot.TextReader(400, 200, 0, 0, 0, "WTF", "/usr/share/fonts/truetype/dejavu/DejaVuSans-ExtraLight.ttf", 12, "#000000", "#ffffff")
+        # int,int,int,int,openshot::GravityType,std::string,std::string,double,std::string,std::string
+
+#        tr = openshot.ImageReader("/home/kibab/vmshare/Alpspitzferrata/assets/altitude.svg")
+#        c = openshot.Clip(tr)
+#        c.Start(0)
+#        c.End(3)
+#        c.Position(2)
+#        c.alpha.AddPoint(1, 50) 
+#        self.timeline.AddClip(c)
+        
         for frame in range(video_settings.get("start_frame"), video_settings.get("end_frame") + 1):
             log.info("Getting frame #%d", frame)
             frame_obj = self.timeline.GetFrame(frame)
-            img = frame_obj.GetImage()
-            log.info(img)
-            qp = QPainter()
-            qp.begin(img)
+#            img = frame_obj.GetImage()
+#            log.info(img)
+#            qp = QPainter()
+#            qp.begin(img)
 #            frame_obj.Display()
 
             w.WriteFrame(frame_obj)
@@ -122,6 +150,7 @@ class OpenshotExporter():
 
 
 def main():
+    a = QApplication([])
     from classes import info
     print("Loaded modules from current directory: %s" % info.PATH)
 
@@ -134,8 +163,8 @@ def main():
 
     args = parser.parse_args()
 
-    project = project_data.ProjectDataStore()
-    project.load(args.project_path, export_mode=True)
+    project = project_data.ProjectDataStore(export_mode=True)
+    project.load(args.project_path)
 
     exporter = OpenshotExporter(project, args.output_file_path)
     
